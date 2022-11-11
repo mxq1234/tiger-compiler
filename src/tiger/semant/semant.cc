@@ -54,7 +54,7 @@ type::Ty *SubscriptVar::SemAnalyze(env::VEnvPtr venv, env::TEnvPtr tenv,
   if(typeid(*(varTy->ActualTy())) != typeid(type::ArrayTy))
     errormsg->Error(var_->pos_, "array type required");
   if(typeid(*subscriptTy) == typeid(type::IntTy)) {
-    return varTy;
+    return (static_cast<type::ArrayTy*>(varTy->ActualTy()))->ty_;
   } else {
     errormsg->Error(subscript_->pos_, "integer required");
     return type::IntTy::Instance();
@@ -298,7 +298,7 @@ type::Ty *ArrayExp::SemAnalyze(env::VEnvPtr venv, env::TEnvPtr tenv,
       errormsg->Error(size_->pos_, "integer required");
     if(!initTy->IsSameType((static_cast<type::ArrayTy*>(arrTy->ActualTy()))->ty_))
       errormsg->Error(init_->pos_, "type mismatch");
-    return (static_cast<type::ArrayTy*>(arrTy->ActualTy()))->ty_;
+    return arrTy;
   } else {
     errormsg->Error(pos_, "undefined array %s", typ_->Name().data());
     return type::IntTy::Instance();
@@ -412,7 +412,7 @@ type::Ty *NameTy::SemAnalyze(env::TEnvPtr tenv, err::ErrorMsg *errormsg) const {
     errormsg->Error(pos_, "undefined type %s", name_->Name().data());
     return type::IntTy::Instance();
   }
-  return nameTy;
+  return new type::NameTy(name_, nameTy);
 }
 
 type::Ty *RecordTy::SemAnalyze(env::TEnvPtr tenv,
