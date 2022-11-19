@@ -77,7 +77,7 @@ public:
   [[nodiscard]] Cx UnCx(err::ErrorMsg *errormsg) override {
     /* TODO: Put your lab5 code here */
     errormsg->Error(0, "Can't convert NxExp to Cx");
-    return Cx(PatchList({}), PatchList({}), nullptr);
+    return Cx(PatchList(), PatchList(), nullptr);
   }
 };
 
@@ -156,6 +156,9 @@ void ProgTr::Translate() {
   FillBaseVEnv();
   FillBaseTEnv();
   tr::ExpAndTy* absynExpAndTy = absyn_tree_->Translate(venv_.get(), tenv_.get(), tigerMainLevel, tigerMainLabel, errormsg_.get());
+
+  tree::Stm* returnStm = new tree::MoveStm(new tree::TempExp(reg_manager->ReturnValue()), absynExpAndTy->exp_->UnEx());
+  frags->PushBack(new frame::ProcFrag(returnStm, tigerMainLevel->frame_));
 }
 
 } // namespace tr
@@ -166,7 +169,7 @@ tr::ExpAndTy *AbsynTree::Translate(env::VEnvPtr venv, env::TEnvPtr tenv,
                                    tr::Level *level, temp::Label *label,
                                    err::ErrorMsg *errormsg) const {
   /* TODO: Put your lab5 code here */
-  root_->Translate(venv, tenv, level, label, errormsg);
+  return root_->Translate(venv, tenv, level, label, errormsg);
 }
 
 tr::ExpAndTy *SimpleVar::Translate(env::VEnvPtr venv, env::TEnvPtr tenv,
@@ -229,7 +232,11 @@ tr::ExpAndTy *SubscriptVar::Translate(env::VEnvPtr venv, env::TEnvPtr tenv,
             new tree::BinopExp(
               tree::BinOp::PLUS_OP,
               varExpAndTy->exp_->UnEx(),
-              subscriptExpAndTy->exp_->UnEx()
+              new tree::BinopExp(
+                tree::BinOp::MUL_OP,
+                subscriptExpAndTy->exp_->UnEx(),
+                new tree::ConstExp(reg_manager->WordSize())
+              )
             )
           )
         ), static_cast<type::ArrayTy*>(varExpAndTy->ty_->ActualTy())->ty_
@@ -276,9 +283,7 @@ tr::ExpAndTy *StringExp::Translate(env::VEnvPtr venv, env::TEnvPtr tenv,
   frags->PushBack(new frame::StringFrag(stringLabel, str_));
   return new tr::ExpAndTy(
     new tr::ExExp(
-      new tree::MemExp(
-        new tree::NameExp(stringLabel)
-      )
+      new tree::NameExp(stringLabel)
     ), type::StringTy::Instance()
   );
 }
@@ -316,11 +321,16 @@ tr::ExpAndTy *CallExp::Translate(env::VEnvPtr venv, env::TEnvPtr tenv,
       errormsg->Error(pos_, "too many params in function %s", func_->Name().data());
       return new tr::ExpAndTy(nullptr, type::IntTy::Instance());
     }
-    tree::Exp* fpExp = new tree::TempExp(reg_manager->FramePointer());
-    for(tr::Level* decLevel = funEntry->level_->parent_; decLevel != level; level = level->parent_)
-      fpExp = level->frame_->formals_->front()->toExp(fpExp);
-    expList->Insert(fpExp);
-    return new tr::ExpAndTy(new tr::ExExp(new tree::CallExp(new tree::NameExp(func_), expList)), resultTy);
+
+    std::vector<std::string> externFunc = { "init_array", "alloc_record", "string_equal", "print", "printi", "ord", "chr", "size", "concat", "substring", "not", "__wrap_getchar" };
+    if(std::find(externFunc.begin(), externFunc.end(), func_->Name()) == externFunc.end()) {
+      tree::Exp* fpExp = new tree::TempExp(reg_manager->FramePointer());
+      for(tr::Level* decLevel = funEntry->level_->parent_; decLevel != level; level = level->parent_)
+        fpExp = level->frame_->formals_->front()->toExp(fpExp);
+      expList->Insert(fpExp);
+      return new tr::ExpAndTy(new tr::ExExp(new tree::CallExp(new tree::NameExp(func_), expList, funEntry->level_->frame_->GetEscapesList())), resultTy);
+    }
+    return new tr::ExpAndTy(new tr::ExExp(frame::externalCall(func_->Name(), expList)), resultTy);
   } else {
     errormsg->Error(pos_, "undefined function %s", func_->Name().data());
     return new tr::ExpAndTy(nullptr, type::IntTy::Instance());
@@ -893,8 +903,8 @@ tr::Exp *FunctionDec::Translate(env::VEnvPtr venv, env::TEnvPtr tenv,
   /* function name(params) = exp | function name(params) : result = exp */
   for(FunDec* funDec : functions_->GetList()) {
     /* register function name, including formalTyList and return type */
-    FieldList* params = funDec->params_;
-    type::TyList* formals = params->MakeFormalTyList(tenv, errormsg);
+    FieldList* paramsList = funDec->params_;
+    type::TyList* formalsTyList = paramsList->MakeFormalTyList(tenv, errormsg);
     type::Ty* returnTy;
     if(funDec->result_) {
       returnTy = tenv->Look(funDec->result_);
@@ -907,28 +917,28 @@ tr::Exp *FunctionDec::Translate(env::VEnvPtr venv, env::TEnvPtr tenv,
     }
     if(venv->Look(funDec->name_))   errormsg->Error(pos_, "two functions have the same name");
 
-    std::list<bool>* escapes = new std::list<bool>;
-    for(Field* field : params->GetList())
-      escapes->push_back(field->escape_);
+    std::list<bool>* formalsEscapeList = new std::list<bool>;
+    for(Field* field : paramsList->GetList())
+      formalsEscapeList->push_back(field->escape_);
 
     temp::Label* funcLabel = temp::LabelFactory::NamedLabel(funDec->name_->Name());
-    tr::Level* funcLevel = tr::Level::NewLevel(level, funcLabel, escapes);
-    venv->Enter(funDec->name_, new env::FunEntry(funcLevel, funcLabel, formals, returnTy));
+    tr::Level* funcLevel = tr::Level::NewLevel(level, funcLabel, formalsEscapeList);
+    venv->Enter(funDec->name_, new env::FunEntry(funcLevel, funcLabel, formalsTyList, returnTy));
   }
 
   for(FunDec* funDec : functions_->GetList()) {
     venv->BeginScope();
-    FieldList* params = funDec->params_;
-    type::TyList* formals = params->MakeFormalTyList(tenv, errormsg);
+    FieldList* paramsList = funDec->params_;
+    type::TyList* formalsTyList = paramsList->MakeFormalTyList(tenv, errormsg);
     env::FunEntry* funEntry = (static_cast<env::FunEntry*>(venv->Look(funDec->name_)));
-    std::list<frame::Access*>* accesses = funEntry->level_->frame_->formals_;
+    std::list<frame::Access*>* actualsAccessList = funEntry->level_->frame_->formals_;
     type::Ty* returnTy = funEntry->result_;
 
-    auto formalItr = formals->GetList().begin();
-    auto paramItr = params->GetList().begin(), paramItre = params->GetList().end();
-    auto accessItr = accesses->begin();
-    for(++accessItr; paramItr != paramItre; ++paramItr, ++formalItr, ++accessItr)
-      venv->Enter((*paramItr)->name_, new env::VarEntry(new tr::Access(funEntry->level_, (*accessItr)), *formalItr));
+    auto formalTypeItr = formalsTyList->GetList().begin();
+    auto paramItr = paramsList->GetList().begin(), paramItre = paramsList->GetList().end();
+    auto accessItr = ++(actualsAccessList->begin());
+    for(; paramItr != paramItre; ++paramItr, ++formalTypeItr, ++accessItr)
+      venv->Enter((*paramItr)->name_, new env::VarEntry(new tr::Access(funEntry->level_, (*accessItr)), *formalTypeItr));
     
     tr::ExpAndTy* bodyExpAndTy = funDec->body_->Translate(venv, tenv, funEntry->level_, funEntry->label_, errormsg);
     venv->EndScope();
@@ -944,6 +954,7 @@ tr::Exp *FunctionDec::Translate(env::VEnvPtr venv, env::TEnvPtr tenv,
       errormsg->Error(funDec->body_->pos_, "func dec error");
     } else {
       tree::Stm* returnStm = new tree::MoveStm(new tree::TempExp(reg_manager->ReturnValue()), bodyExpAndTy->exp_->UnEx());
+      frags->PushBack(new frame::ProcFrag(returnStm, funEntry->level_->frame_));
     }
   }
   return new tr::ExExp(new tree::ConstExp(0));

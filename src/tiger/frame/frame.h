@@ -79,13 +79,17 @@ class Frame {
   /* TODO: Put your lab5 code here */
   public:
     std::list<frame::Access*>* formals_;
-    temp::Label* label_;
+    std::list<bool>* escapes_;
+    temp::Label* name_;
 
   protected:
-    Frame(temp::Label* label, std::list<frame::Access*>* formals)
-        : label_(label), formals_(formals) {}
+    Frame(temp::Label* label, std::list<frame::Access*>* formals, std::list<bool>* escapes)
+        : name_(label), formals_(formals), escapes_(escapes) {}
   public:
     static Frame* NewFrame(temp::Label* label, const std::list<bool>& escapes);
+    std::string GetLabel() const { return name_->Name().data(); }
+    std::list<bool>* GetEscapesList() const { return escapes_; }
+    virtual int GetFrameSize() const = 0;
     virtual Access* AllocLocal(bool escape) = 0;
 };
 
@@ -144,8 +148,12 @@ private:
 
 tree::Exp* externalCall(std::string s, tree::ExpList* args);
 
-tree::Stm* procEntryExit1(Frame* frame, tree::Stm* stm);
+/* 4, 5, 8 */
+tree::Stm* ProcEntryExit1(Frame* frame, tree::Stm* stm);
 
+assem::InstrList* ProcEntryExit2(assem::InstrList* body);
+
+assem::Proc* ProcEntryExit3(Frame* frame, assem::InstrList* body);
 
 } // namespace frame
 

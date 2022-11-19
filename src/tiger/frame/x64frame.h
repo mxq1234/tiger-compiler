@@ -33,6 +33,11 @@ public:
     r13 = temp::TempFactory::NewTemp();
     r14 = temp::TempFactory::NewTemp();
     r15 = temp::TempFactory::NewTemp();
+    regs_.assign({ rax, rsp, rbp, rsi, rdi, rdx, rcx, rbx, r8, r9, r10, r11, r12, r13, r14, r15 });
+    std::vector<std::string> regsName;
+    regsName.assign({ "%rax", "%rsp", "%rbp", "%rsi", "%rdi", "%rdx", "%rcx", "%rbx", "%r8", "%r9", "%r10", "%r11", "%r12", "%r13", "%r14", "%r15" });
+    for(int i = 0; i < 16; ++i)
+      temp_map_->Enter(regs_[i], new std::string(regsName[i]));
   }
   temp::TempList *Registers() override {
     return new temp::TempList({ rax, rdi, rsi, rdx, rcx, r8, r9, r10, r11, rbp, rsp, rbx, r12, r13, r14, r15 });
@@ -47,7 +52,7 @@ public:
     return new temp::TempList({ rbp, rsp, rbx, r12, r13, r14, r15 });
   }
   temp::TempList *ReturnSink() override {
-    return new temp::TempList({ rax });
+    return new temp::TempList({ rbp, rsp, rbx, r12, r13, r14, r15, rax });
   }
   int WordSize() override { return 8; }
   temp::Temp *FramePointer() override { return rbp; }
