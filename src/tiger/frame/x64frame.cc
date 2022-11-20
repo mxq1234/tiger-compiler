@@ -45,7 +45,7 @@ class X64Frame : public Frame {
 
 Frame* Frame::NewFrame(temp::Label* label, const std::list<bool>& escapes) {
   Frame* frame = new X64Frame(label, new std::list<frame::Access*>, escapes);
-  int i = escapes.size() - 1, offset = reg_manager->WordSize();
+  int i = 0, offset = reg_manager->WordSize();
   temp::TempList* argRegs = reg_manager->ArgRegs();
   for(bool escape : escapes) {
     frame::Access* access;
@@ -56,6 +56,7 @@ Frame* Frame::NewFrame(temp::Label* label, const std::list<bool>& escapes) {
       access = new InRegAccess(argRegs->NthTemp(i));
     }
     frame->formals_->push_back(access);
+    ++i;
   }
   return frame;
 }

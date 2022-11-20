@@ -106,8 +106,9 @@ void MoveStm::Munch(assem::InstrList &instr_list, std::string_view fs) {
         BinopExp* binopExp2 = static_cast<BinopExp*>(offsetExp);
         temp::Temp* offsetTmp = binopExp2->left_->Munch(instr_list, fs);
         int wordSize = static_cast<ConstExp*>(binopExp2->right_)->consti_;
-        instr.append("(`s" + std::to_string(srcNum++) + ", `s" + std::to_string(srcNum++) + ", " + std::to_string(wordSize) + "), ");
+        instr.append("(`s" + std::to_string(srcNum++) + ",`s");
         srcTempList->Append(baseAddrTmp);
+        instr.append(std::to_string(srcNum++) + "," + std::to_string(wordSize) + "), ");
         srcTempList->Append(offsetTmp);
       } else {
         throw "Mem Exp Error";
@@ -149,8 +150,9 @@ void MoveStm::Munch(assem::InstrList &instr_list, std::string_view fs) {
         BinopExp* binopExp2 = static_cast<BinopExp*>(offsetExp);
         temp::Temp* offsetTmp = binopExp2->left_->Munch(instr_list, fs);
         int wordSize = static_cast<ConstExp*>(binopExp2->right_)->consti_;
-        instr.append("(`s" + std::to_string(srcNum++) + ", `s" + std::to_string(srcNum++) + ", " + std::to_string(wordSize) + ")");
+        instr.append("(`s" + std::to_string(srcNum++) + ",`s");
         srcTempList->Append(baseAddrTmp);
+        instr.append(std::to_string(srcNum++) + "," + std::to_string(wordSize) + ")");
         srcTempList->Append(offsetTmp);
       } else {
         throw "Mem Exp Error";
@@ -178,7 +180,7 @@ void ExpStm::Munch(assem::InstrList &instr_list, std::string_view fs) {
 temp::Temp *BinopExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
   /* TODO: Put your lab5 code here */
   temp::Temp* leftTmp = left_->Munch(instr_list, fs);
-  temp::Temp* rightTmp = right_->Munch(instr_list, fs);
+  temp::Temp* rightTmp;
   temp::Temp* dstTmp = temp::TempFactory::NewTemp();
   temp::Temp* saveRaxTmp = temp::TempFactory::NewTemp();
   temp::Temp* saveRdxTmp = temp::TempFactory::NewTemp();
@@ -187,14 +189,29 @@ temp::Temp *BinopExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
   switch (op_)
   {
   case BinOp::PLUS_OP:
-    instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ leftTmp })));
-    instr_list.Append(new assem::OperInstr("addq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ rightTmp }), nullptr));
+    if(typeid(*right_) == typeid(ConstExp)) {
+      int immediate = static_cast<ConstExp*>(right_)->consti_;
+      instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ leftTmp })));
+      instr_list.Append(new assem::OperInstr("addq $" + std::to_string(immediate) + ", `d0", new temp::TempList({ dstTmp }), nullptr, nullptr));
+    } else {
+      rightTmp = right_->Munch(instr_list, fs);
+      instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ leftTmp })));
+      instr_list.Append(new assem::OperInstr("addq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ rightTmp }), nullptr));
+    }
     break;
   case BinOp::MINUS_OP:
-    instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ leftTmp })));
-    instr_list.Append(new assem::OperInstr("subq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ rightTmp }), nullptr));
+    if(typeid(*right_) == typeid(ConstExp)) {
+      int immediate = static_cast<ConstExp*>(right_)->consti_;
+      instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ leftTmp })));
+      instr_list.Append(new assem::OperInstr("subq $" + std::to_string(immediate) + ", `d0", new temp::TempList({ dstTmp }), nullptr, nullptr));
+    } else {
+      rightTmp = right_->Munch(instr_list, fs);
+      instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ leftTmp })));
+      instr_list.Append(new assem::OperInstr("subq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ rightTmp }), nullptr));
+    }
     break;
   case BinOp::MUL_OP:
+    rightTmp = right_->Munch(instr_list, fs);
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveRaxTmp }), new temp::TempList({ raxTmp })));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveRdxTmp }), new temp::TempList({ rdxTmp })));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ raxTmp }), new temp::TempList({ leftTmp })));
@@ -205,6 +222,7 @@ temp::Temp *BinopExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ raxTmp }), new temp::TempList({ saveRaxTmp })));
     break;
   case BinOp::DIV_OP:
+    rightTmp = right_->Munch(instr_list, fs);
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveRaxTmp }), new temp::TempList({ raxTmp })));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveRdxTmp }), new temp::TempList({ rdxTmp })));    instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ raxTmp }), new temp::TempList({ leftTmp })));
     instr_list.Append(new assem::OperInstr("cqto", nullptr, nullptr, nullptr));
@@ -233,7 +251,7 @@ temp::Temp *MemExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
       BinopExp* binopExp2 = static_cast<BinopExp*>(offsetExp);
       temp::Temp* offsetTmp = binopExp2->left_->Munch(instr_list, fs);
       int wordSize = static_cast<ConstExp*>(binopExp2->right_)->consti_;
-      instr_list.Append(new assem::MoveInstr("movq (`s0, `s1, " + std::to_string(wordSize) + "), `d0", new temp::TempList({ dstTmp }), new temp::TempList({ baseAddrTmp, offsetTmp })));
+      instr_list.Append(new assem::MoveInstr("movq (`s0,`s1," + std::to_string(wordSize) + "),`d0", new temp::TempList({ dstTmp }), new temp::TempList({ baseAddrTmp, offsetTmp })));
       return dstTmp;
     }
     throw "MemExp Error";
@@ -279,8 +297,6 @@ temp::Temp *CallExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
   if(typeid(*fun_) != typeid(NameExp))    throw "CallExp Error";
   temp::Label* label = static_cast<NameExp*>(fun_)->name_;
   int size = 0;
-  temp::TempList* srcTmpList = args_->MunchArgs(instr_list, fs, escapes_, size);
-  temp::TempList* dstTmpList = reg_manager->CallerSaves();
   temp::TempList* saveCallerList = new temp::TempList;
 
   for(temp::Temp* argTemp : reg_manager->CallerSaves()->GetList()) {
@@ -289,15 +305,20 @@ temp::Temp *CallExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveCallerTmp }), new temp::TempList({ argTemp })));
   }
 
+  temp::TempList* srcTmpList = args_->MunchArgs(instr_list, fs, escapes_, size);
+  temp::TempList* dstTmpList = reg_manager->CallerSaves();
+
   if(size > 0)  instr_list.Append(new assem::OperInstr("subq $" + std::to_string(size) + ", `d0", new temp::TempList({ reg_manager->StackPointer() }), nullptr, nullptr));
   instr_list.Append(new assem::OperInstr("callq " + label->Name(), dstTmpList, srcTmpList, nullptr));
   if(size > 0)  instr_list.Append(new assem::OperInstr("addq $" + std::to_string(size) + ", `d0", new temp::TempList({ reg_manager->StackPointer() }), nullptr, nullptr));
   
+  temp::Temp* resultTmp = temp::TempFactory::NewTemp();
+  instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ resultTmp }), new temp::TempList({ reg_manager->ReturnValue() })));
+
   auto saveCallerTmpItr = saveCallerList->GetList().begin();
   for(temp::Temp* argTemp : reg_manager->CallerSaves()->GetList())
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ argTemp }), new temp::TempList({ *(saveCallerTmpItr++) })));
-  
-  return reg_manager->ReturnValue();
+  return resultTmp;
 }
 
 temp::TempList *ExpList::MunchArgs(assem::InstrList &instr_list, std::string_view fs, std::list<bool>* escapes, int& spOff) {
