@@ -248,9 +248,8 @@ class CallExp : public Exp {
 public:
   Exp *fun_;
   ExpList *args_;
-  std::list<bool>* escapes_;
 
-  CallExp(Exp *fun, ExpList *args, std::list<bool>* escapes = nullptr) : fun_(fun), args_(args), escapes_(escapes) {}
+  CallExp(Exp *fun, ExpList *args) : fun_(fun), args_(args) {}
   ~CallExp() override;
 
   void Print(FILE *out, int d) const override;
@@ -267,7 +266,7 @@ public:
   void Insert(Exp *exp) { exp_list_.push_front(exp); }
   std::list<Exp *> &GetNonConstList() { return exp_list_; }
   const std::list<Exp *> &GetList() { return exp_list_; }
-  temp::TempList *MunchArgs(assem::InstrList &instr_list, std::string_view fs, std::list<bool>* escapes, int& spOff);
+  temp::TempList *MunchArgs(assem::InstrList &instr_list, std::string_view fs);
 
 private:
   std::list<Exp *> exp_list_;

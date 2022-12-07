@@ -158,7 +158,7 @@ void ProgTr::Translate() {
   tr::ExpAndTy* absynExpAndTy = absyn_tree_->Translate(venv_.get(), tenv_.get(), tigerMainLevel, tigerMainLabel, errormsg_.get());
 
   tree::Stm* returnStm = new tree::MoveStm(new tree::TempExp(reg_manager->ReturnValue()), absynExpAndTy->exp_->UnEx());
-  frags->PushBack(new frame::ProcFrag(returnStm, tigerMainLevel->frame_));
+  frags->PushBack(new frame::ProcFrag(frame::ProcEntryExit1(tigerMainLevel->frame_, returnStm), tigerMainLevel->frame_));
 }
 
 } // namespace tr
@@ -328,7 +328,7 @@ tr::ExpAndTy *CallExp::Translate(env::VEnvPtr venv, env::TEnvPtr tenv,
       for(tr::Level* decLevel = funEntry->level_->parent_; decLevel != level; level = level->parent_)
         fpExp = level->frame_->formals_->front()->toExp(fpExp);
       expList->Insert(fpExp);
-      return new tr::ExpAndTy(new tr::ExExp(new tree::CallExp(new tree::NameExp(func_), expList, funEntry->level_->frame_->GetEscapesList())), resultTy);
+      return new tr::ExpAndTy(new tr::ExExp(new tree::CallExp(new tree::NameExp(func_), expList)), resultTy);
     }
     return new tr::ExpAndTy(new tr::ExExp(frame::externalCall(func_->Name(), expList)), resultTy);
   } else {
@@ -986,7 +986,7 @@ tr::Exp *FunctionDec::Translate(env::VEnvPtr venv, env::TEnvPtr tenv,
       errormsg->Error(funDec->body_->pos_, "func dec error");
     } else {
       tree::Stm* returnStm = new tree::MoveStm(new tree::TempExp(reg_manager->ReturnValue()), bodyExpAndTy->exp_->UnEx());
-      frags->PushBack(new frame::ProcFrag(returnStm, funEntry->level_->frame_));
+      frags->PushBack(new frame::ProcFrag(frame::ProcEntryExit1(funEntry->level_->frame_, returnStm), funEntry->level_->frame_));
     }
   }
   return new tr::ExExp(new tree::ConstExp(0));

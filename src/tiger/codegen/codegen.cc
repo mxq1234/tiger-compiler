@@ -20,6 +20,7 @@ void CodeGen::Codegen() {
   temp::TempList* saveCalleeList = new temp::TempList;
 
   for(temp::Temp* argTemp : reg_manager->CalleeSaves()->GetList()) {
+    if(argTemp == reg_manager->FramePointer() || argTemp == reg_manager->StackPointer())  continue;
     temp::Temp* saveCalleeTmp = temp::TempFactory::NewTemp();
     saveCalleeList->Append(saveCalleeTmp);
     (*(assem_instr_->GetInstrList())).Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveCalleeTmp }), new temp::TempList({ argTemp })));
@@ -28,8 +29,12 @@ void CodeGen::Codegen() {
     stm->Munch(*(assem_instr_->GetInstrList()), frame_->GetLabel() + "_framesize");
 
   auto saveCalleeTmpItr = saveCalleeList->GetList().begin();
-  for(temp::Temp* argTemp : reg_manager->CalleeSaves()->GetList())
+  for(temp::Temp* argTemp : reg_manager->CalleeSaves()->GetList()) {
+    if(argTemp == reg_manager->FramePointer() || argTemp == reg_manager->StackPointer())  continue;
     (*(assem_instr_->GetInstrList())).Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ argTemp }), new temp::TempList({ *(saveCalleeTmpItr++) })));
+  }
+
+  assem_instr_.reset(new cg::AssemInstr(frame::ProcEntryExit2(assem_instr_->GetInstrList())));
 }
 
 void AssemInstr::Print(FILE *out, temp::Map *map) const {
@@ -215,8 +220,8 @@ temp::Temp *BinopExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveRaxTmp }), new temp::TempList({ raxTmp })));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveRdxTmp }), new temp::TempList({ rdxTmp })));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ raxTmp }), new temp::TempList({ leftTmp })));
-    instr_list.Append(new assem::OperInstr("cqto", nullptr, nullptr, nullptr));
-    instr_list.Append(new assem::OperInstr("imulq `s0", nullptr, new temp::TempList({ rightTmp }), nullptr));
+    instr_list.Append(new assem::OperInstr("cqto", new temp::TempList({ rdxTmp }), nullptr, nullptr));
+    instr_list.Append(new assem::OperInstr("imulq `s0", new temp::TempList({ raxTmp, rdxTmp }), new temp::TempList({ rightTmp }), nullptr));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ raxTmp })));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ rdxTmp }), new temp::TempList({ saveRdxTmp })));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ raxTmp }), new temp::TempList({ saveRaxTmp })));
@@ -225,8 +230,8 @@ temp::Temp *BinopExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
     rightTmp = right_->Munch(instr_list, fs);
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveRaxTmp }), new temp::TempList({ raxTmp })));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveRdxTmp }), new temp::TempList({ rdxTmp })));    instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ raxTmp }), new temp::TempList({ leftTmp })));
-    instr_list.Append(new assem::OperInstr("cqto", nullptr, nullptr, nullptr));
-    instr_list.Append(new assem::OperInstr("idivq `s0", nullptr, new temp::TempList({ rightTmp }), nullptr));
+    instr_list.Append(new assem::OperInstr("cqto", new temp::TempList({ rdxTmp }), nullptr, nullptr));
+    instr_list.Append(new assem::OperInstr("idivq `s0", new temp::TempList({ raxTmp, rdxTmp }), new temp::TempList({ rightTmp }), nullptr));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ dstTmp }), new temp::TempList({ raxTmp })));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ rdxTmp }), new temp::TempList({ saveRdxTmp })));
     instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ raxTmp }), new temp::TempList({ saveRaxTmp })));    break;
@@ -296,18 +301,17 @@ temp::Temp *CallExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
   /* TODO: Put your lab5 code here */
   if(typeid(*fun_) != typeid(NameExp))    throw "CallExp Error";
   temp::Label* label = static_cast<NameExp*>(fun_)->name_;
-  int size = 0;
-  temp::TempList* saveCallerList = new temp::TempList;
+  // temp::TempList* saveCallerList = new temp::TempList;
 
-  for(temp::Temp* argTemp : reg_manager->CallerSaves()->GetList()) {
-    temp::Temp* saveCallerTmp = temp::TempFactory::NewTemp();
-    saveCallerList->Append(saveCallerTmp);
-    instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveCallerTmp }), new temp::TempList({ argTemp })));
-  }
+  // for(temp::Temp* argTemp : reg_manager->CallerSaves()->GetList()) {
+  //   temp::Temp* saveCallerTmp = temp::TempFactory::NewTemp();
+  //   saveCallerList->Append(saveCallerTmp);
+  //   instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ saveCallerTmp }), new temp::TempList({ argTemp })));
+  // }
 
-  temp::TempList* srcTmpList = args_->MunchArgs(instr_list, fs, escapes_, size);
+  temp::TempList* srcTmpList = args_->MunchArgs(instr_list, fs);
   temp::TempList* dstTmpList = reg_manager->CallerSaves();
-
+  int size = reg_manager->WordSize() * ((int)args_->GetList().size() - (int)reg_manager->ArgRegs()->GetList().size());
   if(size > 0)  instr_list.Append(new assem::OperInstr("subq $" + std::to_string(size) + ", `d0", new temp::TempList({ reg_manager->StackPointer() }), nullptr, nullptr));
   instr_list.Append(new assem::OperInstr("callq " + label->Name(), dstTmpList, srcTmpList, nullptr));
   if(size > 0)  instr_list.Append(new assem::OperInstr("addq $" + std::to_string(size) + ", `d0", new temp::TempList({ reg_manager->StackPointer() }), nullptr, nullptr));
@@ -315,42 +319,27 @@ temp::Temp *CallExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
   temp::Temp* resultTmp = temp::TempFactory::NewTemp();
   instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ resultTmp }), new temp::TempList({ reg_manager->ReturnValue() })));
 
-  auto saveCallerTmpItr = saveCallerList->GetList().begin();
-  for(temp::Temp* argTemp : reg_manager->CallerSaves()->GetList())
-    instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ argTemp }), new temp::TempList({ *(saveCallerTmpItr++) })));
+  // auto saveCallerTmpItr = saveCallerList->GetList().begin();
+  // for(temp::Temp* argTemp : reg_manager->CallerSaves()->GetList())
+  //   instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ argTemp }), new temp::TempList({ *(saveCallerTmpItr++) })));
   return resultTmp;
 }
 
-temp::TempList *ExpList::MunchArgs(assem::InstrList &instr_list, std::string_view fs, std::list<bool>* escapes, int& spOff) {
+temp::TempList *ExpList::MunchArgs(assem::InstrList &instr_list, std::string_view fs) {
   /* TODO: Put your lab5 code here */
   temp::TempList* tmpList = new temp::TempList;
   temp::TempList* argList = reg_manager->ArgRegs();
-  int i = (int)exp_list_.size() - 1, argRegNum = argList->GetList().size();
-  if(escapes) {
-    auto escapeRItr = escapes->rbegin();
-    for(auto ritr = exp_list_.rbegin(); ritr != exp_list_.rend(); ++ritr, ++escapeRItr) {
-      temp::Temp* resultTmp = (*ritr)->Munch(instr_list, fs);
-      tmpList->Append(resultTmp);
-      if(i >= argRegNum || *escapeRItr) {
-        spOff += reg_manager->WordSize();
-        instr_list.Append(new assem::MoveInstr("movq `s0, -" + std::to_string(spOff) + "(`s1)", nullptr, new temp::TempList({ resultTmp, reg_manager->StackPointer() })));
-      } else {
-        instr_list.Append(new assem::MoveInstr("movq `s0 ,`d0", new temp::TempList({ argList->NthTemp(i) }), new temp::TempList({ resultTmp })));
-      }
-      --i;
+  int i = (int)exp_list_.size() - 1, argRegNum = argList->GetList().size(), spOff = 0;
+  for(auto ritr = exp_list_.rbegin(); ritr != exp_list_.rend(); ++ritr) {
+    temp::Temp* resultTmp = (*ritr)->Munch(instr_list, fs);
+    if(i >= argRegNum) {
+      spOff += reg_manager->WordSize();
+      instr_list.Append(new assem::MoveInstr("movq `s0, -" + std::to_string(spOff) + "(`s1)", nullptr, new temp::TempList({ resultTmp, reg_manager->StackPointer() })));
+    } else {
+      tmpList->Append(argList->NthTemp(i));
+      instr_list.Append(new assem::MoveInstr("movq `s0 ,`d0", new temp::TempList({ argList->NthTemp(i) }), new temp::TempList({ resultTmp })));
     }
-  } else {
-    for(auto ritr = exp_list_.rbegin(); ritr != exp_list_.rend(); ++ritr) {
-      temp::Temp* resultTmp = (*ritr)->Munch(instr_list, fs);
-      tmpList->Append(resultTmp);
-      if(i >= argRegNum) {
-        spOff += reg_manager->WordSize();
-        instr_list.Append(new assem::MoveInstr("movq `s0, -" + std::to_string(spOff) + "(`s1)", nullptr, new temp::TempList({ resultTmp, reg_manager->StackPointer() })));
-      } else {
-        instr_list.Append(new assem::MoveInstr("movq `s0 ,`d0", new temp::TempList({ argList->NthTemp(i) }), new temp::TempList({ resultTmp })));
-      }
-      --i;
-    }
+    --i;
   }
   return tmpList;
 }

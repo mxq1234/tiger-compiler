@@ -76,6 +76,7 @@ public:
   void Insert(std::list<Instr *>::const_iterator pos, assem::Instr *instr) {
     instr_list_.insert(pos, instr);
   }
+  std::list<Instr*>& GetOriginalList() { return instr_list_; }
   [[nodiscard]] const std::list<Instr *> &GetList() const {
     return instr_list_;
   }

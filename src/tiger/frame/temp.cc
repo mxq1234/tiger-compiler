@@ -81,4 +81,45 @@ void Map::DumpMap(FILE *out) {
   }
 }
 
+void TempList::Union(TempList* list) {
+  for(temp::Temp* t : list->GetList())
+    temp_list_.push_back(t);
+  temp_list_.sort();
+  temp_list_.unique();
+}
+
+TempList* TempList::Remove(TempList* list) {
+  TempList* newTempList = new temp::TempList;
+  std::list<temp::Temp*> newList(GetList());
+  for(temp::Temp* t : list->GetList())
+    newList.remove(t);
+  for(temp::Temp* t : newList)
+    newTempList->Append(t);
+  return newTempList;
+}
+
+bool TempList::Equal(TempList* list) const {
+  if(list->GetList().size() != temp_list_.size())   return false;
+  for(temp::Temp* t : temp_list_) {
+    auto itr = std::find(list->GetList().begin(), list->GetList().end(), t);
+    if(itr == list->GetList().end())  return false;
+  }
+  for(temp::Temp* t : list->GetList()) {
+    auto itr = std::find(temp_list_.begin(), temp_list_.end(), t);
+    if(itr == temp_list_.end()) return false;
+  }
+  return true;
+}
+
+void TempList::Replace(Temp* oldTemp, Temp* newTemp) {
+  std::list<Temp *>::iterator itr;
+  itr = std::find(temp_list_.begin(), temp_list_.end(), oldTemp);
+  if(itr == temp_list_.end())   return;
+  *itr = newTemp;
+}
+
+bool TempList::Contain(Temp* t) const {
+  return (std::find(temp_list_.begin(), temp_list_.end(), t) != temp_list_.end());
+}
+
 } // namespace temp

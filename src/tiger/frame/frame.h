@@ -57,6 +57,8 @@ public:
    */
   [[nodiscard]] virtual int WordSize() = 0;
 
+  [[nodiscard]] virtual int RegNum() = 0;
+
   [[nodiscard]] virtual temp::Temp *FramePointer() = 0;
 
   [[nodiscard]] virtual temp::Temp *StackPointer() = 0;
@@ -81,6 +83,7 @@ class Frame {
     std::list<frame::Access*>* formals_;
     std::list<bool>* escapes_;
     temp::Label* name_;
+    tree::Stm* procEntryExit1Stm;
 
   protected:
     Frame(temp::Label* label, std::list<frame::Access*>* formals, std::list<bool>* escapes)
