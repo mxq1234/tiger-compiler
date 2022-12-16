@@ -26,12 +26,17 @@ public:
   }
   void Append(INodePtr src, INodePtr dst) { move_list_.emplace_back(src, dst); }
   bool Contain(INodePtr src, INodePtr dst);
+  bool Contain(std::pair<INodePtr, INodePtr> move);
   void Delete(INodePtr src, INodePtr dst);
   void Prepend(INodePtr src, INodePtr dst) {
     move_list_.emplace_front(src, dst);
   }
   MoveList *Union(MoveList *list);
   MoveList *Intersect(MoveList *list);
+  bool Empty() const;
+  void Clear() { move_list_.clear(); }
+  void Push(std::pair<INodePtr, INodePtr> m);
+  std::pair<INodePtr, INodePtr> Pop();
 
 private:
   std::list<std::pair<INodePtr, INodePtr>> move_list_;

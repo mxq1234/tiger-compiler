@@ -57,6 +57,8 @@ public:
    */
   [[nodiscard]] virtual int WordSize() = 0;
 
+  [[nodiscard]] virtual int RegNum() = 0;
+
   [[nodiscard]] virtual temp::Temp *FramePointer() = 0;
 
   [[nodiscard]] virtual temp::Temp *StackPointer() = 0;
@@ -71,13 +73,27 @@ protected:
 class Access {
 public:
   /* TODO: Put your lab5 code here */
-  
+  virtual tree::Exp* toExp(tree::Exp* framePtr) const = 0;
   virtual ~Access() = default;
-  
 };
 
 class Frame {
   /* TODO: Put your lab5 code here */
+  public:
+    std::list<frame::Access*>* formals_;
+    std::list<bool>* escapes_;
+    temp::Label* name_;
+    tree::Stm* procEntryExit1Stm;
+
+  protected:
+    Frame(temp::Label* label, std::list<frame::Access*>* formals, std::list<bool>* escapes)
+        : name_(label), formals_(formals), escapes_(escapes) {}
+  public:
+    static Frame* NewFrame(temp::Label* label, const std::list<bool>& escapes);
+    std::string GetLabel() const { return name_->Name().data(); }
+    std::list<bool>* GetEscapesList() const { return escapes_; }
+    virtual int GetFrameSize() const = 0;
+    virtual Access* AllocLocal(bool escape) = 0;
 };
 
 /**
@@ -132,6 +148,15 @@ private:
 };
 
 /* TODO: Put your lab5 code here */
+
+tree::Exp* externalCall(std::string s, tree::ExpList* args);
+
+/* 4, 5, 8 */
+tree::Stm* ProcEntryExit1(Frame* frame, tree::Stm* stm);
+
+assem::InstrList* ProcEntryExit2(assem::InstrList* body);
+
+assem::Proc* ProcEntryExit3(Frame* frame, assem::InstrList* body);
 
 } // namespace frame
 

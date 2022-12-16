@@ -105,10 +105,18 @@ public:
   void Clear() { node_list_.clear(); }
   void Prepend(Node<T> *n) { node_list_.push_front(n); }
   void Append(Node<T> *n) { node_list_.push_back(n); }
+  void Push(Node<T> *n) { node_list_.push_back(n); }
+  Node<T>* Pop() {
+    Node<T>* node = node_list_.back();
+    node_list_.pop_back();
+    return node;
+  }
+  bool Empty() const { return node_list_.empty(); }
 
   // Set operation on two lists
   NodeList<T> *Union(NodeList<T> *nl);
   NodeList<T> *Diff(NodeList<T> *nl);
+  NodeList<T> *Intersect(NodeList<T> *nl);
 
   [[nodiscard]] const std::list<Node<T> *> &GetList() const {
     return node_list_;
@@ -234,6 +242,15 @@ template <typename T> NodeList<T> *NodeList<T>::Diff(NodeList<T> *nl) {
   return res;
 }
 
+template <typename T> NodeList<T> *NodeList<T>::Intersect(NodeList<T> *nl) {
+  NodeList<T> *res = new NodeList<T>();
+  for(auto node : node_list_) {
+    if(nl->Contain(node))
+      res->node_list_.push_back(node);
+  }
+  return res;
+}
+
 // The type of "tables" mapping graph-nodes to information
 template <typename T, typename ValueType>
 using Table = tab::Table<Node<T>, ValueType>;
@@ -255,6 +272,7 @@ void Graph<T>::Show(FILE *out, NodeList<T> *p,
     fprintf(out, " (%d): ", n->Key());
     for (auto q : n->Succ()->node_list_)
       fprintf(out, "%d ", q->Key());
+    fprintf(out, "|");
     for (auto q : n->Pred()->node_list_)
       fprintf(out, "%d ", q->Key());
     fprintf(out, "\n");

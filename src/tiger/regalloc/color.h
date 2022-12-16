@@ -7,6 +7,8 @@
 #include "tiger/util/graph.h"
 
 namespace col {
+using Color = std::string*;
+
 struct Result {
   Result() : coloring(nullptr), spills(nullptr) {}
   Result(temp::Map *coloring, live::INodeListPtr spills)
@@ -15,8 +17,19 @@ struct Result {
   live::INodeListPtr spills;
 };
 
-class Color {
+class ColorList {
   /* TODO: Put your lab6 code here */
+public:
+  static ColorList* NewColorList();
+  static Color findColor(temp::Temp* t);
+  void DeleteColor(Color color) { colors_.remove(color); }
+  bool Empty() const { return colors_.empty(); }
+  Color getOne() const { return colors_.front(); }
+
+private:
+  ColorList() = default;
+  void Append(Color color) { colors_.push_back(color); }
+  std::list<Color> colors_;
 };
 } // namespace col
 
