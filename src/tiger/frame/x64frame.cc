@@ -37,7 +37,7 @@ class X64Frame : public Frame {
 
   public:
     X64Frame(temp::Label* label, std::list<frame::Access*>* formals, const std::list<bool>& escapes)
-      : Frame(label, formals, new std::list<bool>(escapes)), spOffset(-reg_manager->WordSize()) {
+      : Frame(label, formals, new std::list<bool>(escapes)), spOffset(0) {
       procEntryExit1Stm = new tree::ExpStm(new tree::ConstExp(0));
     }
     Access* AllocLocal(bool escape) override;
@@ -96,12 +96,10 @@ assem::InstrList* ProcEntryExit2(assem::InstrList* body) {
 }
 
 assem::Proc* ProcEntryExit3(Frame* frame, assem::InstrList* body) {
-  std::string prologue = frame->GetLabel() + ":\n", epilogue = "";
-  prologue.append("movq %rbp, -8(%rsp)\n");
-  prologue.append("movq %rsp, %rbp\n");
+  std::string prologue = ".set " + frame->name_->Name() + "_framesize, " + std::to_string(frame->GetFrameSize()) + "\n", epilogue = "";
+  prologue.append(frame->GetLabel() + ":\n");
   prologue.append("subq $" + std::to_string(frame->GetFrameSize()) + ", %rsp\n");
   epilogue.append("addq $" + std::to_string(frame->GetFrameSize()) + ", %rsp\n");
-  epilogue.append("movq -8(%rsp), %rbp\n");
   epilogue.append("retq\n");
   return new assem::Proc(prologue, body, epilogue);
 }
