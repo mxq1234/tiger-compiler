@@ -66,9 +66,16 @@ void JumpStm::Munch(assem::InstrList &instr_list, std::string_view fs) {
 void CjumpStm::Munch(assem::InstrList &instr_list, std::string_view fs) {
   /* TODO: Put your lab5 code here */
   temp::Temp* leftTemp = left_->Munch(instr_list, fs);
-  temp::Temp* rightTemp = right_->Munch(instr_list, fs);
-  std::string instr = "cmpq `s0, `s1";
-  instr_list.Append(new assem::OperInstr(instr, nullptr, new temp::TempList({ rightTemp, leftTemp }), nullptr));
+  std::string instr;
+  if(typeid(*right_) == typeid(tree::ConstExp)) {
+    int consti = static_cast<tree::ConstExp*>(right_)->consti_;
+    instr = "cmpq $" + std::to_string(consti) + ", `s0";
+    instr_list.Append(new assem::OperInstr(instr, nullptr, new temp::TempList({ leftTemp }), nullptr));
+  } else {
+    temp::Temp* rightTemp = right_->Munch(instr_list, fs);
+    instr = "cmpq `s0, `s1";
+    instr_list.Append(new assem::OperInstr(instr, nullptr, new temp::TempList({ rightTemp, leftTemp }), nullptr));
+  }
 
   std::vector<temp::Label*>* targets = new std::vector<temp::Label*>;
   targets->push_back(true_label_);
@@ -268,11 +275,11 @@ temp::Temp *MemExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
 
 temp::Temp *TempExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
   /* TODO: Put your lab5 code here */
-  // if(temp_ != reg_manager->FramePointer())   return temp_;
-  // temp::Temp* tmp = temp::TempFactory::NewTemp();
-  // instr_list.Append(new assem::OperInstr("leaq " + std::string(fs) + "(`s0), `d0", new temp::TempList({ tmp }), new temp::TempList({ reg_manager->StackPointer() }), nullptr));
-  // return tmp;
-  return temp_;
+  if(temp_ != reg_manager->FramePointer())   return temp_;
+  temp::Temp* tmp = temp::TempFactory::NewTemp();
+  instr_list.Append(new assem::OperInstr("leaq " + std::string(fs) + "(`s0), `d0", new temp::TempList({ tmp }), new temp::TempList({ reg_manager->StackPointer() }), nullptr));
+  return tmp;
+  //return temp_;
 }
 
 temp::Temp *EseqExp::Munch(assem::InstrList &instr_list, std::string_view fs) {
@@ -337,7 +344,7 @@ temp::TempList *ExpList::MunchArgs(assem::InstrList &instr_list, std::string_vie
       instr_list.Append(new assem::MoveInstr("movq `s0, -" + std::to_string(spOff) + "(`s1)", nullptr, new temp::TempList({ resultTmp, reg_manager->StackPointer() })));
     } else {
       tmpList->Append(argList->NthTemp(i));
-      instr_list.Append(new assem::MoveInstr("movq `s0 ,`d0", new temp::TempList({ argList->NthTemp(i) }), new temp::TempList({ resultTmp })));
+      instr_list.Append(new assem::MoveInstr("movq `s0, `d0", new temp::TempList({ argList->NthTemp(i) }), new temp::TempList({ resultTmp })));
     }
     --i;
   }

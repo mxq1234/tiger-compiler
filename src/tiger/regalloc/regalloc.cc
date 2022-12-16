@@ -77,7 +77,6 @@ void RegAllocator::Build() {
   live::LiveGraph live_graph_ = live_->GetLiveGraph();
   temp::TempList* reg_ = reg_manager->Registers();
   reg_->Append(reg_manager->StackPointer());
-  reg_->Append(reg_manager->FramePointer());
   const std::list<temp::Temp*>& reg_list_ = reg_->GetList();
   for(live::INodePtr node : live_graph_.interf_graph->Nodes()->GetList()) {
     if(std::find(reg_list_.begin(), reg_list_.end(), node->NodeInfo()) != reg_list_.end()) {
@@ -187,22 +186,29 @@ void RegAllocator::RewriteProgram() {
       if((*itr)->Use()->Contain(v->NodeInfo())) {
         fprintf(stdout, "(Use)Rewrite ");
         //(*itr)->Print(stdout, reg_manager->temp_map_);
-        temp::Temp* newTemp = temp::TempFactory::NewTemp();
-        (*itr)->Use()->Replace(v->NodeInfo(), newTemp);
-        assem::Instr* newInstr = new assem::MoveInstr("movq " + std::to_string(consti_) + "(`s0), `d0", new temp::TempList({newTemp}), new temp::TempList({reg_manager->FramePointer()}));
+        temp::Temp* newTemp1 = temp::TempFactory::NewTemp();
+        temp::Temp* newTemp2 = temp::TempFactory::NewTemp();
+        (*itr)->Use()->Replace(v->NodeInfo(), newTemp2);
+        assem::Instr* newInstr1 = new assem::OperInstr("leaq " + frame_->name_->Name() + "_framesize(`s0), `d0", new temp::TempList({ newTemp1 }), new temp::TempList({ reg_manager->StackPointer() }), nullptr);
+        assem::Instr* newInstr2 = new assem::MoveInstr("movq " + std::to_string(consti_) + "(`s0), `d0", new temp::TempList({ newTemp2 }), new temp::TempList({ newTemp1 }));
         fprintf(stdout, "insert ");
         //newInstr->Print(stdout, reg_manager->temp_map_);
-        assem_instr_->GetInstrList()->Insert(itr, newInstr);
+        assem_instr_->GetInstrList()->Insert(itr, newInstr1);
+        assem_instr_->GetInstrList()->Insert(itr, newInstr2);
       }
       if((*itr)->Def()->Contain(v->NodeInfo())) {
         fprintf(stdout, "(Def)Rewrite ");
         //(*itr)->Print(stdout, reg_manager->temp_map_);
-        temp::Temp* newTemp = temp::TempFactory::NewTemp();
-        (*itr)->Def()->Replace(v->NodeInfo(), newTemp);
-        assem::Instr* newInstr = new assem::MoveInstr("movq `s0, " + std::to_string(consti_) + "(`s1)", nullptr, new temp::TempList({newTemp, reg_manager->FramePointer()}));
+        temp::Temp* newTemp1 = temp::TempFactory::NewTemp();
+        temp::Temp* newTemp2 = temp::TempFactory::NewTemp();
+        (*itr)->Def()->Replace(v->NodeInfo(), newTemp2);
+        assem::Instr* newInstr1 = new assem::OperInstr("leaq " + frame_->name_->Name() + "_framesize(`s0), `d0", new temp::TempList({ newTemp1 }), new temp::TempList({ reg_manager->StackPointer() }), nullptr);
+        assem::Instr* newInstr2 = new assem::MoveInstr("movq `s0, " + std::to_string(consti_) + "(`s1)", nullptr, new temp::TempList({newTemp2, newTemp1}));
         fprintf(stdout, "insert ");
         //newInstr->Print(stdout, reg_manager->temp_map_);
-        assem_instr_->GetInstrList()->Insert(++itr, newInstr);
+        ++itr;
+        assem_instr_->GetInstrList()->Insert(itr, newInstr1);
+        assem_instr_->GetInstrList()->Insert(itr, newInstr2);
       } else {
         ++itr;
       }

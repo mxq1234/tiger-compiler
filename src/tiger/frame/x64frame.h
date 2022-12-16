@@ -40,7 +40,7 @@ public:
       temp_map_->Enter(regs_[i], new std::string(regsName[i]));
   }
   temp::TempList *Registers() override {
-    return new temp::TempList({ rax, rdi, rsi, rdx, rcx, r8, r9, r10, r11, rbx, r12, r13, r14, r15 });
+    return new temp::TempList({ rax, rdi, rsi, rdx, rcx, r8, r9, r10, r11, rbx, r12, r13, r14, r15, rbp });
   }
   temp::TempList *ArgRegs() override {
     return new temp::TempList({ rdi, rsi, rdx, rcx, r8, r9 });

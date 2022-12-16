@@ -89,17 +89,11 @@ void LiveGraphFactory::InterfGraph() {
   /* TODO: Put your lab6 code here */
   INodePtr spInodePtr = live_graph_.interf_graph->NewNode(reg_manager->StackPointer());
   temp_node_map_->Enter(reg_manager->StackPointer(), spInodePtr);
-  INodePtr bpInodePtr = live_graph_.interf_graph->NewNode(reg_manager->FramePointer());
-  temp_node_map_->Enter(reg_manager->FramePointer(), bpInodePtr);
-  live_graph_.interf_graph->AddEdge(bpInodePtr, spInodePtr);
-  live_graph_.interf_graph->AddEdge(spInodePtr, bpInodePtr);
   for(temp::Temp* t : reg_manager->Registers()->GetList()) {
     INodePtr ptr = live_graph_.interf_graph->NewNode(t);
     temp_node_map_->Enter(t, ptr);
     live_graph_.interf_graph->AddEdge(ptr, spInodePtr);
     live_graph_.interf_graph->AddEdge(spInodePtr, ptr);
-    live_graph_.interf_graph->AddEdge(ptr, bpInodePtr);
-    live_graph_.interf_graph->AddEdge(bpInodePtr, ptr);
   }
   for(const fg::FNodePtr& node : flowgraph_->Nodes()->GetList()) {
     for(temp::Temp* t : node->NodeInfo()->Use()->GetList()) {
@@ -108,8 +102,6 @@ void LiveGraphFactory::InterfGraph() {
       temp_node_map_->Enter(t, ptr);
       live_graph_.interf_graph->AddEdge(ptr, spInodePtr);
       live_graph_.interf_graph->AddEdge(spInodePtr, ptr);
-      live_graph_.interf_graph->AddEdge(ptr, bpInodePtr);
-      live_graph_.interf_graph->AddEdge(bpInodePtr, ptr);
     }
     for(temp::Temp* t : node->NodeInfo()->Def()->GetList()) {
       if(temp_node_map_->Look(t))   continue;
@@ -117,8 +109,6 @@ void LiveGraphFactory::InterfGraph() {
       temp_node_map_->Enter(t, ptr);
       live_graph_.interf_graph->AddEdge(ptr, spInodePtr);
       live_graph_.interf_graph->AddEdge(spInodePtr, ptr);
-      live_graph_.interf_graph->AddEdge(ptr, bpInodePtr);
-      live_graph_.interf_graph->AddEdge(bpInodePtr, ptr);
     }
   }
   for(temp::Temp* t1 : reg_manager->Registers()->GetList()) {
