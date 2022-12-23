@@ -1,8 +1,18 @@
 #include "tiger/regalloc/regalloc.h"
 
 #include "tiger/output/logger.h"
+#include "tiger/runtime/gc/roots/roots.h"
+#include <map>
+#include <set>
 
 extern frame::RegManager *reg_manager;
+
+bool isPtr(type::Ty* ty){
+  if(ty == nullptr)   return false;
+  return typeid(*(ty->ActualTy())) == typeid(type::RecordTy)
+  || typeid(*(ty->ActualTy())) == typeid(type::ArrayTy)
+  || typeid(*(ty->ActualTy())) == typeid(type::NilTy);
+};
 
 namespace ra {
 /* TODO: Put your lab6 code here */
@@ -27,7 +37,6 @@ RegAllocator::RegAllocator(frame::Frame* frame, std::unique_ptr<cg::AssemInstr> 
 RegAllocator::~RegAllocator() { }
 
 void RegAllocator::RegAlloc() {
-  fprintf(stdout, "RegAlloc\n");
   LivenessAnalysis();
   Build();
   MakeWorkList();
@@ -177,35 +186,30 @@ void RegAllocator::AssignColors() {
 
 void RegAllocator::RewriteProgram() {
   for(live::INodePtr v : spilled_nodes_->GetList()) {
-    fprintf(stdout, "t%d must be spilled\n", v->NodeInfo()->Int());
-    frame::Access* newAccess = frame_->AllocLocal(true);
+    frame::Access* newAccess = frame_->AllocLocal(true, reg_manager->temp_ty_map_->Look(v->NodeInfo()));
     int consti_ = static_cast<tree::ConstExp*>(static_cast<tree::BinopExp*>(static_cast<tree::MemExp*>(newAccess->toExp(new tree::TempExp(reg_manager->FramePointer())))->exp_)->right_)->consti_;
     const std::list<assem::Instr *>& instr_list_ = assem_instr_->GetInstrList()->GetList();
     std::list<assem::Instr *>::const_iterator itr = instr_list_.begin();
     while(itr != instr_list_.end()) {
       if((*itr)->Use()->Contain(v->NodeInfo())) {
-        fprintf(stdout, "(Use)Rewrite ");
-        //(*itr)->Print(stdout, reg_manager->temp_map_);
         temp::Temp* newTemp1 = temp::TempFactory::NewTemp();
         temp::Temp* newTemp2 = temp::TempFactory::NewTemp();
         (*itr)->Use()->Replace(v->NodeInfo(), newTemp2);
+        reg_manager->temp_ty_map_->Enter(newTemp1, type::IntTy::Instance());
+        reg_manager->temp_ty_map_->Enter(newTemp2, reg_manager->temp_ty_map_->Look(v->NodeInfo()));
         assem::Instr* newInstr1 = new assem::OperInstr("leaq " + frame_->name_->Name() + "_framesize(`s0), `d0", new temp::TempList({ newTemp1 }), new temp::TempList({ reg_manager->StackPointer() }), nullptr);
         assem::Instr* newInstr2 = new assem::MoveInstr("movq " + std::to_string(consti_) + "(`s0), `d0", new temp::TempList({ newTemp2 }), new temp::TempList({ newTemp1 }));
-        fprintf(stdout, "insert ");
-        //newInstr->Print(stdout, reg_manager->temp_map_);
         assem_instr_->GetInstrList()->Insert(itr, newInstr1);
         assem_instr_->GetInstrList()->Insert(itr, newInstr2);
       }
       if((*itr)->Def()->Contain(v->NodeInfo())) {
-        fprintf(stdout, "(Def)Rewrite ");
-        //(*itr)->Print(stdout, reg_manager->temp_map_);
         temp::Temp* newTemp1 = temp::TempFactory::NewTemp();
         temp::Temp* newTemp2 = temp::TempFactory::NewTemp();
         (*itr)->Def()->Replace(v->NodeInfo(), newTemp2);
+        reg_manager->temp_ty_map_->Enter(newTemp1, type::IntTy::Instance());
+        reg_manager->temp_ty_map_->Enter(newTemp2, reg_manager->temp_ty_map_->Look(v->NodeInfo()));
         assem::Instr* newInstr1 = new assem::OperInstr("leaq " + frame_->name_->Name() + "_framesize(`s0), `d0", new temp::TempList({ newTemp1 }), new temp::TempList({ reg_manager->StackPointer() }), nullptr);
         assem::Instr* newInstr2 = new assem::MoveInstr("movq `s0, " + std::to_string(consti_) + "(`s1)", nullptr, new temp::TempList({newTemp2, newTemp1}));
-        fprintf(stdout, "insert ");
-        //newInstr->Print(stdout, reg_manager->temp_map_);
         ++itr;
         assem_instr_->GetInstrList()->Insert(itr, newInstr1);
         assem_instr_->GetInstrList()->Insert(itr, newInstr2);
@@ -335,6 +339,59 @@ std::unique_ptr<ra::Result> RegAllocator::TransferResult() {
   auto itr = result->il_->GetOriginalList().begin();
   while(itr != result->il_->GetOriginalList().end()) {
     assem::Instr* instr = *itr;
+    if(typeid(*instr) == typeid(assem::OperInstr)) {
+      std::string assem_str_ = static_cast<assem::OperInstr*>(instr)->assem_;
+      if(assem_str_.find("alloc_record") != std::string::npos
+      || assem_str_.find("init_array") != std::string::npos) {
+        for(temp::Temp* t : reg_manager->CalleeSaves()->GetList())
+          if(frame_->saves_->find(t) == frame_->saves_->end())
+            frame_->AllocLocal(true, new type::SaveTy(t));
+        for(temp::Temp* t : reg_manager->CalleeSaves()->GetList())
+          result->il_->GetOriginalList().insert(itr, new assem::MoveInstr(
+            "movq `s0, " + std::to_string(frame_->GetFrameSize() + (*frame_->saves_)[t]) + "(`s1)",
+            nullptr, new temp::TempList({ t, reg_manager->StackPointer() })
+          ));
+        ++itr;
+        for(temp::Temp* t : reg_manager->CalleeSaves()->GetList())
+          result->il_->GetOriginalList().insert(itr, new assem::MoveInstr(
+            "movq " + std::to_string(frame_->GetFrameSize() + (*frame_->saves_)[t]) + "(`s0), `d0",
+            new temp::TempList({ t }), new temp::TempList({ reg_manager->StackPointer() })
+          ));
+        continue;
+      }
+    }
+    ++itr;
+  }
+
+  itr = result->il_->GetOriginalList().begin();
+  while(itr != result->il_->GetOriginalList().end()) {
+    assem::Instr* instr = *itr;
+    if(typeid(*instr) == typeid(assem::OperInstr)) {
+      std::string assem_str_ = static_cast<assem::OperInstr*>(instr)->assem_;
+      if(assem_str_.find("call") != std::string::npos) {
+        temp::TempList* tempList = live_->GetOut(instr);
+        temp::Label* retLabel = temp::LabelFactory::NewLabel();
+        ++itr;
+        result->il_->GetOriginalList().insert(itr, new assem::LabelInstr(retLabel->Name(), retLabel));
+
+        std::set<temp::Temp*> root_set;
+        temp::TempList* root_list = new temp::TempList;
+        for(temp::Temp* t : tempList->GetList()) {
+          type::Ty* ty = reg_manager->temp_ty_map_->Look(t);
+          if(isPtr(ty))  root_set.insert(reg_manager->GetRegisterByName(*(result->coloring_->Look(t))));
+        }
+        for(temp::Temp* t : root_set)
+          root_list->Append(t);
+        reg_manager->pointer_map_[retLabel] = new gc::PointerMap(root_list, *(frame_->roots_), *(frame_->spills_), *(frame_->saves_), frame_->GetFrameSize());
+        continue;
+      }
+    }
+    ++itr;
+  }
+
+  itr = result->il_->GetOriginalList().begin();
+  while(itr != result->il_->GetOriginalList().end()) {
+    assem::Instr* instr = *itr;
     if(typeid(*instr) == typeid(assem::MoveInstr)){
       assem::MoveInstr* moveInstr = static_cast<assem::MoveInstr*>(instr);
       if(moveInstr->assem_ == "movq `s0, `d0") {
@@ -348,7 +405,6 @@ std::unique_ptr<ra::Result> RegAllocator::TransferResult() {
     }
     ++itr;
   }
-  //fg_->GetFlowGraph()->Show(stdout, fg_->GetFlowGraph()->Nodes(), [&](assem::Instr* instr){ instr->Print(stdout, result->coloring_); });
   return result;
 }
 } // namespace ra

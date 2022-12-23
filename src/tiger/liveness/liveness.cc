@@ -157,12 +157,12 @@ void LiveGraphFactory::InterfGraph() {
 void LiveGraphFactory::Liveness() {
   LiveMap();
   InterfGraph();
-  fprintf(stdout, "%s\n", "LivenessAnalysis");
-  live_graph_.interf_graph->Show(stdout, live_graph_.interf_graph->Nodes(), [&](temp::Temp* t){
-    auto p = reg_manager->temp_map_->Look(t);
-    if(p)   fprintf(stdout, "%s", p->c_str());
-    else    fprintf(stdout, "t%d", t->Int());
-  });
+  // fprintf(stdout, "%s\n", "LivenessAnalysis");
+  // live_graph_.interf_graph->Show(stdout, live_graph_.interf_graph->Nodes(), [&](temp::Temp* t){
+  //   auto p = reg_manager->temp_map_->Look(t);
+  //   if(p)   fprintf(stdout, "%s", p->c_str());
+  //   else    fprintf(stdout, "t%d", t->Int());
+  // });
 }
 
 } // namespace live

@@ -16,18 +16,19 @@ long *init_array(int size, long init) {
   return a;
 }
 
-int *alloc_record(int size) {
-  int i;
-  int *p, *a;
-  p = a = (int *)malloc(size);
-  for (i = 0; i < size; i += sizeof(int)) *p++ = 0;
-  return a;
-}
-
 struct string {
   int length;
   unsigned char chars[1];
 };
+
+int *alloc_record(struct string *s) {
+  int i;
+  int *p, *a;
+  int size = s->length * 8;
+  p = a = (int *)malloc(size);
+  for (i = 0; i < size; i += sizeof(int)) *p++ = 0;
+  return a;
+}
 
 int string_equal(struct string *s, struct string *t) {
   int i;

@@ -2,6 +2,7 @@
 #define TIGER_SEMANT_TYPES_H_
 
 #include "tiger/symbol/symbol.h"
+#include "tiger/frame/temp.h"
 #include <list>
 
 namespace type {
@@ -65,6 +66,7 @@ public:
   explicit ArrayTy(Ty *ty) : ty_(ty) {}
 };
 
+
 class NameTy : public Ty {
 public:
   sym::Symbol *sym_;
@@ -73,6 +75,20 @@ public:
   NameTy(sym::Symbol *sym, Ty *ty) : sym_(sym), ty_(ty) {}
 
   Ty *ActualTy() override;
+};
+
+class SpillTy : public Ty {
+public:
+  temp::Temp* temp_;
+
+  explicit SpillTy(temp::Temp* temp) : temp_(temp) {}
+};
+
+class SaveTy : public Ty {
+public:
+  temp::Temp* temp_;
+
+  explicit SaveTy(temp::Temp* temp) : temp_(temp) {}
 };
 
 class TyList {

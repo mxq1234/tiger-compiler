@@ -1,4 +1,5 @@
 #include "tiger/canon/canon.h"
+#include "tiger/semant/types.h"
 
 namespace tree {
 /**
@@ -65,12 +66,12 @@ struct ExpRefList {
       return new tree::ExpStm(new tree::ConstExp(0)); // nop
     } else {
       tree::Exp *&ref = refs.front().get();
-      if (typeid(*ref) == typeid(tree::CallExp)) {
-        temp::Temp *t = temp::TempFactory::NewTemp();
-        ref = new tree::EseqExp(new tree::MoveStm(new tree::TempExp(t), ref),
-                                new tree::TempExp(t));
-        return Reorder();
-      } else {
+      // if (typeid(*ref) == typeid(tree::CallExp)) {
+      //   temp::Temp *t = temp::TempFactory::NewTemp();
+      //   ref = new tree::EseqExp(new tree::MoveStm(new tree::TempExp(t), ref),
+      //                           new tree::TempExp(t));
+      //   return Reorder();
+      // } else {
         canon::StmAndExp hd = ref->Canon();
         refs.pop_front();
         tree::Stm *s = Reorder();
@@ -84,7 +85,7 @@ struct ExpRefList {
               hd.s_, tree::Stm::Seq(
                          new tree::MoveStm(new tree::TempExp(t), hd.e_), s));
         }
-      }
+      // }
     }
   }
 };
@@ -149,7 +150,7 @@ void Canon::Trace(std::list<tree::Stm *> &stms) {
                              cjumpstm->true_label_, falselabel),
           new tree::LabelStm(falselabel),
           new tree::JumpStm(
-              new tree::NameExp(cjumpstm->false_label_),
+              new tree::NameExp(cjumpstm->false_label_, type::IntTy::Instance()),
               new std::vector<temp::Label *>({cjumpstm->false_label_}))};
       stms.insert(stms.end(), tmp_stm_list.begin(), tmp_stm_list.end());
       auto insert = GetNext()->stm_list_;
@@ -215,7 +216,7 @@ canon::StmListList *Canon::BasicBlocks() {
       left = right;
       auto label = static_cast<tree::LabelStm *>(stm)->label_;
       cur_list->stm_list_.push_back(new tree::JumpStm(
-          new tree::NameExp(label), new std::vector<temp::Label *>({label})));
+          new tree::NameExp(label, type::IntTy::Instance()), new std::vector<temp::Label *>({label})));
       stm_lists->Append(cur_list);
       cur_list = new tree::StmList();
     }
@@ -224,7 +225,7 @@ canon::StmListList *Canon::BasicBlocks() {
   }
   cur_list->stm_list_.insert(cur_list->stm_list_.end(), left, right);
   cur_list->stm_list_.push_back(new tree::JumpStm(
-      new tree::NameExp(done), new std::vector<temp::Label *>({done})));
+      new tree::NameExp(done, type::IntTy::Instance()), new std::vector<temp::Label *>({done})));
   stm_lists->Append(cur_list);
   block_ = Block(done, stm_lists);
   return block_.stm_lists_;

@@ -56,6 +56,31 @@ public:
   }
   int WordSize() override { return 8; }
   int RegNum() override { return 16; }
+  bool IsArgsRegister(temp::Temp* t) override {
+    for(temp::Temp* t1 : ArgRegs()->GetList())
+      if(t == t1)   return true;
+    return false;
+  }
+  bool IsCalleeRegister(temp::Temp* t) override {
+    for(temp::Temp* t1 : CalleeSaves()->GetList())
+      if(t == t1)   return true;
+    return false;
+  }
+  temp::Temp* GetRegisterByName(std::string s) override {
+    std::vector<std::string> regsName;
+    regsName.assign({ "%rax", "%rsp", "%rbp", "%rsi", "%rdi", "%rdx", "%rcx", "%rbx", "%r8", "%r9", "%r10", "%r11", "%r12", "%r13", "%r14", "%r15" });
+    for(int i = 0; i < regsName.size(); ++i)
+      if(regsName[i] == s)    return regs_[i];
+    return nullptr;
+  }
+  int GetCalleeRegisterNo(temp::Temp* t) override {
+    int i = 0;
+    for(temp::Temp* t1 : CalleeSaves()->GetList()) {
+      if(t == t1)   return i;
+      i++;
+    }
+    return -1;
+  }
   temp::Temp *FramePointer() override { return rbp; }
   temp::Temp *StackPointer() override { return rsp; }
   temp::Temp *ReturnValue() override { return rax; }

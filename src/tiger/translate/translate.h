@@ -48,7 +48,7 @@ public:
 
   Access(Level *level, frame::Access *access)
       : level_(level), access_(access) {}
-  static Access *AllocLocal(Level *level, bool escape);
+  static Access *AllocLocal(Level *level, bool escape, type::Ty* ty);
 };
 
 class Level {
@@ -59,7 +59,7 @@ public:
   /* TODO: Put your lab5 code here */
   Level(frame::Frame *frame, Level* parent)
       : parent_(parent), frame_(frame) {}
-  static Level* NewLevel(Level* parent, temp::Label* label, std::list<bool>* formals);
+  static Level* NewLevel(Level* parent, temp::Label* label, std::list<bool>* formals, std::list<type::Ty*>* formals_ty_);
 };
 
 class ProgTr {

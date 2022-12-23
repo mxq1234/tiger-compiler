@@ -8,6 +8,7 @@
 #include <string>
 
 #include "tiger/frame/temp.h"
+#include "tiger/semant/types.h"
 
 // Forward Declarations
 namespace canon {
@@ -136,7 +137,8 @@ class MoveStm : public Stm {
 public:
   Exp *dst_, *src_;
 
-  MoveStm(Exp *dst, Exp *src) : dst_(dst), src_(src) {}
+  MoveStm(Exp *dst, Exp *src)
+    : dst_(dst), src_(src) {}
   ~MoveStm() override;
 
   void Print(FILE *out, int d) const override;
@@ -162,6 +164,8 @@ public:
 
 class Exp {
 public:
+  type::Ty* result_ty_;
+
   virtual ~Exp() = default;
 
   virtual void Print(FILE *out, int d) const = 0;
@@ -174,8 +178,8 @@ public:
   BinOp op_;
   Exp *left_, *right_;
 
-  BinopExp(BinOp op, Exp *left, Exp *right)
-      : op_(op), left_(left), right_(right) {}
+  BinopExp(BinOp op, Exp *left, Exp *right, type::Ty* result_ty)
+      : op_(op), left_(left), right_(right) { result_ty_ = result_ty; }
   ~BinopExp() override;
 
   void Print(FILE *out, int d) const override;
@@ -187,7 +191,8 @@ class MemExp : public Exp {
 public:
   Exp *exp_;
 
-  explicit MemExp(Exp *exp) : exp_(exp) {}
+  MemExp(Exp *exp, type::Ty* result_ty)
+    : exp_(exp) { result_ty_ = result_ty; }
   ~MemExp() override;
 
   void Print(FILE *out, int d) const override;
@@ -199,7 +204,11 @@ class TempExp : public Exp {
 public:
   temp::Temp *temp_;
 
-  explicit TempExp(temp::Temp *temp) : temp_(temp) {}
+  explicit TempExp(temp::Temp *temp)
+    : temp_(temp) { result_ty_ = nullptr; }
+
+  TempExp(temp::Temp *temp, type::Ty* result_ty)
+    : temp_(temp) { result_ty_ = result_ty; }
   ~TempExp() override;
 
   void Print(FILE *out, int d) const override;
@@ -212,7 +221,8 @@ public:
   Stm *stm_;
   Exp *exp_;
 
-  EseqExp(Stm *stm, Exp *exp) : stm_(stm), exp_(exp) {}
+  EseqExp(Stm *stm, Exp *exp)
+    : stm_(stm), exp_(exp) { result_ty_ = exp->result_ty_; }
   ~EseqExp() override;
 
   void Print(FILE *out, int d) const override;
@@ -224,7 +234,8 @@ class NameExp : public Exp {
 public:
   temp::Label *name_;
 
-  explicit NameExp(temp::Label *name) : name_(name) {}
+  NameExp(temp::Label *name, type::Ty* result_ty)
+    : name_(name) { result_ty_ = result_ty; }
   ~NameExp() override;
 
   void Print(FILE *out, int d) const override;
@@ -236,7 +247,10 @@ class ConstExp : public Exp {
 public:
   int consti_;
 
-  explicit ConstExp(int consti) : consti_(consti) {}
+  explicit ConstExp(int consti)
+    : consti_(consti) { result_ty_ = type::IntTy::Instance(); }
+  ConstExp(int consti, type::Ty* result_ty)
+    : consti_(consti) { result_ty_ = result_ty; }
   ~ConstExp() override;
 
   void Print(FILE *out, int d) const override;
@@ -249,7 +263,8 @@ public:
   Exp *fun_;
   ExpList *args_;
 
-  CallExp(Exp *fun, ExpList *args) : fun_(fun), args_(args) {}
+  CallExp(Exp *fun, ExpList *args, type::Ty* result_ty)
+    : fun_(fun), args_(args) { result_ty_ = result_ty; }
   ~CallExp() override;
 
   void Print(FILE *out, int d) const override;
@@ -264,7 +279,7 @@ public:
 
   void Append(Exp *exp) { exp_list_.push_back(exp); }
   void Insert(Exp *exp) { exp_list_.push_front(exp); }
-  std::list<Exp *> &GetNonConstList() { return exp_list_; }
+  std::list<Exp* >& GetNonConstList() { return exp_list_; }
   const std::list<Exp *> &GetList() { return exp_list_; }
   temp::TempList *MunchArgs(assem::InstrList &instr_list, std::string_view fs);
 

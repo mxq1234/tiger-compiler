@@ -3,6 +3,8 @@
 #include <cstdio>
 
 #include "tiger/output/logger.h"
+#include "tiger/semant/types.h"
+#include "tiger/runtime/gc/roots/roots.h"
 
 extern frame::RegManager *reg_manager;
 extern frame::Frags *frags;
@@ -22,6 +24,35 @@ void AssemGen::GenAssem(bool need_ra) {
   fprintf(out_, ".section .rodata\n");
   for (auto &&frag : frags->GetList())
     frag->OutputAssem(out_, phase, need_ra);
+
+  // Output data
+  fprintf(out_, ".section .data\n");
+  fprintf(out_, "%s:\n", gc::GC_ROOTS.c_str());
+  for(const auto& x : reg_manager->pointer_map_) {
+    fprintf(out_, ".quad %s\n", x.first->Name().c_str());
+    x.second->OutputAssem(out_);
+  }
+  fprintf(out_, ".quad %d\n", -1);
+  fprintf(out_, ".global %s\n", gc::GC_ROOTS.c_str());
+
+  // Output for gc debug
+  // for (const auto& t : reg_manager->temp_ty_map_->GetMap()) {
+  //   if(t.second == nullptr) fprintf(out__, "t%d nullptr\n", t.first->Int());
+  //   else if(typeid(*(t.second->ActualTy())) == typeid(type::RecordTy))
+  //     fprintf(out__, "t%d record\n", t.first->Int());
+  //   else if(typeid(*(t.second->ActualTy())) == typeid(type::ArrayTy))
+  //     fprintf(out__, "t%d array\n", t.first->Int());
+  //   else if(typeid(*(t.second->ActualTy())) == typeid(type::NilTy))
+  //     fprintf(out__, "t%d nil\n", t.first->Int());
+  //   else if(typeid(*(t.second->ActualTy())) == typeid(type::StringTy))
+  //     fprintf(out__, "t%d string\n", t.first->Int());
+  //   else fprintf(out__, "t%d none pointer\n", t.first->Int());
+  // }
+
+  // for(const auto& x : reg_manager->pointer_map_) {
+  //   fprintf(out___, "%s:\n", x.first->Name().c_str());
+  //   x.second->Print(out___);
+  // }
 }
 
 } // namespace output

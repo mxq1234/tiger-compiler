@@ -1,4 +1,5 @@
 #include "tiger/frame/x64frame.h"
+#include "tiger/semant/types.h"
 
 extern frame::RegManager *reg_manager;
 
@@ -8,13 +9,14 @@ class InFrameAccess : public Access {
 public:
   int offset;
 
-  explicit InFrameAccess(int offset) : offset(offset) {}
+  InFrameAccess(int offset, type::Ty* result_ty) : offset(offset) { result_ty_ = result_ty; }
   /* TODO: Put your lab5 code here */
   tree::Exp* toExp(tree::Exp* framePtr) const override {
     return new tree::MemExp(
       new tree::BinopExp(
-        tree::BinOp::PLUS_OP, framePtr, new tree::ConstExp(offset)
-      )
+        tree::BinOp::PLUS_OP, framePtr, new tree::ConstExp(offset), type::IntTy::Instance()
+      ),
+      result_ty_
     );
   }
 };
@@ -24,10 +26,10 @@ class InRegAccess : public Access {
 public:
   temp::Temp *reg;
 
-  explicit InRegAccess(temp::Temp *reg) : reg(reg) {}
+  explicit InRegAccess(temp::Temp *reg, type::Ty* result_ty) : reg(reg) { result_ty_ = result_ty; }
   /* TODO: Put your lab5 code here */
   tree::Exp* toExp(tree::Exp* framePtr) const override {
-    return new tree::TempExp(reg);
+    return new tree::TempExp(reg, result_ty_);
   }
 };
 
@@ -40,50 +42,61 @@ class X64Frame : public Frame {
       : Frame(label, formals, new std::list<bool>(escapes)), spOffset(0) {
       procEntryExit1Stm = new tree::ExpStm(new tree::ConstExp(0));
     }
-    Access* AllocLocal(bool escape) override;
+    Access* AllocLocal(bool escape, type::Ty* result_ty) override;
     int GetFrameSize() const override { return -spOffset; }
 };
 /* TODO: Put your lab5 code here */
 
-Frame* Frame::NewFrame(temp::Label* label, const std::list<bool>& escapes) {
+Frame* Frame::NewFrame(temp::Label* label, const std::list<bool>& escapes, const std::vector<type::Ty*>& types) {
   Frame* frame = new X64Frame(label, new std::list<frame::Access*>, escapes);
-  int i = 0, upOffset = reg_manager->WordSize();
+  int i = (int)escapes.size() - 1;
   temp::TempList* argRegs = reg_manager->ArgRegs();
-  for(bool escape : escapes) {
+  for(auto itr = escapes.rbegin(); itr != escapes.rend(); ++itr) {
     frame::Access* access;
     if(i >= (int)argRegs->GetList().size()) {
-      access = new InFrameAccess(upOffset);
-      upOffset += reg_manager->WordSize();
+      access = frame->AllocLocal(true, types[i]);
     } else {
-      if(escape)  access = frame->AllocLocal(true);
-      else  access = new InRegAccess(temp::TempFactory::NewTemp());    
+      access = frame->AllocLocal(*itr, types[i]);
       frame->procEntryExit1Stm = new tree::SeqStm(frame->procEntryExit1Stm,
         new tree::MoveStm(
           access->toExp(new tree::TempExp(reg_manager->FramePointer())),
-          new tree::TempExp(argRegs->NthTemp(i))
+          new tree::TempExp(argRegs->NthTemp(i), types[i])
         )
       );
     }
-    frame->formals_->push_back(access);
-    ++i;
+    frame->formals_->push_front(access);
+    --i;
   }
   return frame;
 }
 
 /* See again when RA, there may be not enough regs in actual */
-Access* X64Frame::AllocLocal(bool escape) {
+Access* X64Frame::AllocLocal(bool escape, type::Ty* result_ty) {
   frame::Access* access;
   if(escape) {
     spOffset -= reg_manager->WordSize();
-    access = new InFrameAccess(spOffset);
+    if(typeid(*(result_ty->ActualTy())) == typeid(type::RecordTy)
+    || typeid(*(result_ty->ActualTy())) == typeid(type::ArrayTy)
+    || typeid(*(result_ty->ActualTy())) == typeid(type::NilTy))
+      roots_->push_back(spOffset);
+    if(typeid(*(result_ty->ActualTy())) == typeid(type::SpillTy))
+      (*spills_)[(static_cast<type::SpillTy*>(result_ty))->temp_] = spOffset;
+    if(typeid(*(result_ty->ActualTy())) == typeid(type::SaveTy))
+      (*saves_)[(static_cast<type::SaveTy*>(result_ty))->temp_] = spOffset;
+    access = new InFrameAccess(spOffset, result_ty);
   } else {
-    access = new InRegAccess(temp::TempFactory::NewTemp());
+    temp::Temp* tmp = temp::TempFactory::NewTemp();
+    access = new InRegAccess(tmp, result_ty);
   }
   return access;
 }
 
 tree::Exp* externalCall(std::string s, tree::ExpList* args) {
-  return new tree::CallExp(new tree::NameExp(temp::LabelFactory::NamedLabel(s)), args);
+  // if(s == "alloc_record" || s == "init_array")
+  //   return new tree::CallExp(new tree::NameExp(temp::LabelFactory::NamedLabel(s), type::IntTy::Instance()), args, type::ArrayTy::Instance());
+  // else
+  //   return new tree::CallExp(new tree::NameExp(temp::LabelFactory::NamedLabel(s), type::IntTy::Instance()), args, type::IntTy::Instance());
+  return nullptr;
 }
 
 tree::Stm* ProcEntryExit1(Frame* frame, tree::Stm* stm) {

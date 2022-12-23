@@ -4,17 +4,19 @@
 #include <list>
 #include <memory>
 #include <string>
+#include <map>
 
 #include "tiger/frame/temp.h"
 #include "tiger/translate/tree.h"
 #include "tiger/codegen/assem.h"
-
+#include "tiger/runtime/gc/roots/roots.h"
+#include "tiger/semant/types.h"
 
 namespace frame {
 
 class RegManager {
 public:
-  RegManager() : temp_map_(temp::Map::Empty()) {}
+  RegManager() : temp_map_(temp::Map::Empty()), temp_ty_map_(temp::TempTyMap::Empty()) {}
 
   temp::Temp *GetRegister(int regno) { return regs_[regno]; }
 
@@ -65,13 +67,26 @@ public:
 
   [[nodiscard]] virtual temp::Temp *ReturnValue() = 0;
 
+  [[nodiscard]] virtual bool IsArgsRegister(temp::Temp*) = 0;
+
+  [[nodiscard]] virtual bool IsCalleeRegister(temp::Temp*) = 0;
+
+  [[nodiscard]] virtual temp::Temp* GetRegisterByName(std::string s) = 0;
+
+  [[nodiscard]] virtual int GetCalleeRegisterNo(temp::Temp* t) = 0;
+
   temp::Map *temp_map_;
+
+  temp::TempTyMap* temp_ty_map_;
+
+  std::map<temp::Label*, gc::PointerMap*> pointer_map_;
 protected:
   std::vector<temp::Temp *> regs_;
 };
 
 class Access {
 public:
+  type::Ty* result_ty_;
   /* TODO: Put your lab5 code here */
   virtual tree::Exp* toExp(tree::Exp* framePtr) const = 0;
   virtual ~Access() = default;
@@ -82,18 +97,22 @@ class Frame {
   public:
     std::list<frame::Access*>* formals_;
     std::list<bool>* escapes_;
+    std::vector<int>* roots_;
+    std::map<temp::Temp*, int>* spills_;
+    std::map<temp::Temp*, int>* saves_;
     temp::Label* name_;
     tree::Stm* procEntryExit1Stm;
 
   protected:
     Frame(temp::Label* label, std::list<frame::Access*>* formals, std::list<bool>* escapes)
-        : name_(label), formals_(formals), escapes_(escapes) {}
+        : name_(label), formals_(formals), escapes_(escapes), roots_(new std::vector<int>()),
+        spills_(new std::map<temp::Temp*, int>), saves_(new std::map<temp::Temp*, int>) {}
   public:
-    static Frame* NewFrame(temp::Label* label, const std::list<bool>& escapes);
+    static Frame* NewFrame(temp::Label* label, const std::list<bool>& escapes, const std::vector<type::Ty*>& types);
     std::string GetLabel() const { return name_->Name().data(); }
     std::list<bool>* GetEscapesList() const { return escapes_; }
     virtual int GetFrameSize() const = 0;
-    virtual Access* AllocLocal(bool escape) = 0;
+    virtual Access* AllocLocal(bool escape, type::Ty* result_ty) = 0;
 };
 
 /**

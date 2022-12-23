@@ -60,6 +60,11 @@ public:
   void Liveness();
   LiveGraph GetLiveGraph() { return live_graph_; }
   tab::Table<temp::Temp, INode> *GetTempNodeMap() { return temp_node_map_; }
+  temp::TempList* GetOut(assem::Instr* instr) {
+    for(fg::FNodePtr node : flowgraph_->Nodes()->GetList())
+      if(node->NodeInfo() == instr)   return out_->Look(node);
+    assert(0);
+  }
 
 private:
   fg::FGraphPtr flowgraph_;
